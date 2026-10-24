@@ -10,7 +10,7 @@ A phone-first web app for live London transport times. Open it, find your stop o
 - Bus mode: map of bus stops, each pin showing its stop letter, with live departures per stop
 - Tube mode: map of Underground stations, with live trains grouped by line and platform
 - Departures count down live and refresh every 30 seconds
-- Save favourite stops for one-tap access
+- Saved list (star button): save a whole stop, just some bus routes, or one Tube line and platform, each with its next departures at a glance
 - Works in light and dark mode
 - Add to your iPhone Home Screen (Safari → Share → Add to Home Screen) to use it full screen like an app
 

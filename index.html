@@ -240,28 +240,42 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .foot button { background: none; border: 0; color: var(--accent); font-weight: 600; padding: 4px 0; }
 
-/* Favourites strip */
-.favs {
-  position: fixed; z-index: 550; left: 0; right: 0;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 22px);
-  display: flex; gap: 8px; overflow-x: auto;
-  padding: 4px max(12px, env(safe-area-inset-right, 0px)) 4px max(12px, env(safe-area-inset-left, 0px));
-  scrollbar-width: none;
-}
-.favs::-webkit-scrollbar { display: none; }
-.fav-chip {
-  flex: none; display: flex; align-items: center; gap: 8px;
-  border: 0; background: color-mix(in srgb, var(--surface) 50%, transparent);
+/* Saved stops */
+.saved-btn {
+  position: fixed; z-index: 550;
+  right: max(12px, env(safe-area-inset-right, 0px));
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 28px);
+  width: 50px; height: 50px; border-radius: 50%; border: 0;
+  background: color-mix(in srgb, var(--surface) 50%, transparent);
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-  box-shadow: 0 4px 14px rgba(20, 22, 28, .12);
-  border-radius: 999px; padding: 6px 14px 6px 6px; max-width: 240px;
+  box-shadow: 0 4px 14px rgba(20, 22, 28, .14);
+  display: grid; place-items: center; color: #b88a00;
 }
-.fav-chip .l {
-  width: 26px; height: 26px; border-radius: 50%; background: var(--red); color: var(--pin-ink);
-  display: grid; place-items: center; font-weight: 800; font-size: 11px; flex: none;
+.saved-btn svg { width: 24px; height: 24px; }
+.saved-btn .badge {
+  position: absolute; top: -2px; right: -2px; min-width: 19px; height: 19px; padding: 0 5px;
+  border-radius: 10px; background: var(--paper-ink); color: var(--paper);
+  font: 700 11px/19px var(--board-font); text-align: center;
 }
-.fav-chip .l.tube { background: transparent; border: 5px solid var(--fg); width: 22px; height: 22px; margin: 2px; }
-.fav-chip span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; font-size: 13px; }
+.sheet .txt-btn { background: none; border: 0; padding: 6px 2px; font: 600 13px var(--board-font); color: var(--paper-ink); text-decoration: underline; text-underline-offset: 3px; }
+.sv-row { display: flex; gap: 8px; align-items: stretch; }
+.sv-main { flex: 1; min-width: 0; border: 0; background: none; padding: 0; text-align: left; display: flex; flex-direction: column; gap: 6px; color: var(--paper-ink); }
+.sv-top { display: flex; gap: 10px; align-items: center; min-width: 0; }
+.sv-ic { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--red); color: var(--pin-ink); display: grid; place-items: center; font: 800 11px/1 var(--font); }
+.sv-ic.tube { background: color-mix(in srgb, var(--paper-ink) 10%, transparent); border: 5px solid color-mix(in srgb, var(--paper-ink) 55%, transparent); }
+.sv-txt { min-width: 0; }
+.sv-txt b { display: block; font: 700 14px/1.25 var(--board-font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sv-txt small { display: block; font: 500 12px/1.3 var(--board-font); color: var(--paper-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sv-next { background: var(--board); color: var(--amber); font: 500 13px/1.2 var(--board-font); border-radius: 6px; padding: 9px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.sv-next.dim { color: var(--amber-dim); }
+.sv-del { flex: none; width: 40px; border: 0; border-radius: 8px; background: color-mix(in srgb, var(--paper-ink) 9%, transparent); color: var(--paper-ink); display: grid; place-items: center; }
+.sv-del svg { width: 18px; height: 18px; }
+.routes button { border: 0; font: 600 11px/1 var(--board-font); padding: 5px 7px; border-radius: 4px; background: color-mix(in srgb, var(--paper-ink) 9%, transparent); color: var(--paper-ink); }
+.routes button[aria-pressed="true"] { background: var(--board); color: var(--amber); }
+.pstar { margin-left: auto; flex: none; width: 32px; height: 32px; border: 0; border-radius: 50%; background: none; display: grid; place-items: center; color: var(--paper-ink); }
+.pstar svg { width: 18px; height: 18px; }
+.pstar[aria-pressed="true"] svg { fill: #f5b400; stroke: #f5b400; }
+.show-all { align-self: flex-start; background: none; border: 0; padding: 4px 0; font: 600 13px var(--board-font); color: var(--paper-ink); text-decoration: underline; text-underline-offset: 3px; }
 
 @media (max-width: 360px) {
   .brand { padding-right: 6px; }
@@ -298,7 +312,21 @@ button { font: inherit; color: inherit; cursor: pointer; }
 </div>
 <div class="hint" id="hint" hidden></div>
 
-<div class="favs" id="favs" hidden></div>
+<button class="saved-btn" id="saved-btn" aria-label="Saved stops"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"/></svg><span class="badge" id="saved-count" hidden></span></button>
+
+<section class="sheet closed" id="saved" aria-live="polite">
+  <div class="grab" aria-hidden="true"></div>
+  <div class="sheet-head">
+    <div class="titles"><h2>Saved</h2><div class="sub" id="sv-sub"></div></div>
+    <div class="head-actions">
+      <button class="txt-btn" id="sv-edit" hidden>Edit</button>
+      <button class="icon-btn" id="sv-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="list" id="sv-list"></div>
+</section>
 
 <section class="sheet closed" id="sheet" aria-live="polite">
   <div class="grab" aria-hidden="true"></div>
@@ -541,35 +569,106 @@ function locate(fly, fromButton = false) {
 }
 $("locate").addEventListener("click", () => locate(true, true));
 
+// ---------- Saved items ----------
+// A saved item is a stop plus an optional filter:
+//   bus  -> { routes: ["87","139"] }      tube -> { lineId, lineName, platform }
+const STAR_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"/></svg>';
+function favKey(id, filter) {
+  if (!filter) return id + "|";
+  if (filter.routes) return id + "|r:" + [...filter.routes].sort().join(",");
+  return id + "|p:" + filter.lineId + ":" + filter.platform;
+}
+favs = favs.map((f) => ({ filter: null, ...f, key: f.key || favKey(f.id, f.filter || null) }));
+const saveFavs = () => store.set("favs", favs);
+const isSaved = (key) => favs.some((f) => f.key === key);
+const direction = (platform) => (platform || "").split(" - ")[0];
+function filterLabel(f) {
+  if (!f.filter) return f.mode === "tube" ? "All lines" : (f.indicator || "All routes");
+  if (f.filter.routes) return "Routes " + f.filter.routes.join(", ");
+  return `${f.filter.lineName} · ${direction(f.filter.platform)}`;
+}
+function toggleSaved(s, filter) {
+  const key = favKey(s.naptanId, filter);
+  if (isSaved(key)) favs = favs.filter((f) => f.key !== key);
+  else favs.push({
+    key, id: s.naptanId, mode, filter,
+    name: mode === "tube" ? cleanStation(s.commonName) : s.commonName,
+    commonName: s.commonName,
+    letter: cleanLetter(s.stopLetter), lat: s.lat, lon: s.lon, indicator: s.indicator,
+    lines: (s.lines || []).map((l) => ({ id: l.id, name: l.name }))
+  });
+  saveFavs();
+  refreshPin(s.naptanId);
+  renderFavs();
+}
+function applyFilter(list, f) {
+  if (!f) return list;
+  if (f.routes) return list.filter((a) => f.routes.includes(a.lineName));
+  return list.filter((a) => a.lineId === f.lineId && a.platformName === f.platform);
+}
+
 // ---------- Stop sheet ----------
 let arrivals = [], fetchedAt = 0, refreshTimer = null, tickTimer = null, arrCtl = null, currentStop = null;
+let selRoutes = new Set();   // bus: routes picked in the header
+let platformFocus = null;    // tube: { lineId, lineName, platform } when opened from a saved platform
 
-function openStop(s) {
+function openStop(s, filter = null) {
+  closeSaved();
   const prev = selectedId;
   selectedId = s.naptanId; currentStop = s;
   if (prev) refreshPin(prev);
   refreshPin(s.naptanId);
+  selRoutes = new Set(filter?.routes || []);
+  platformFocus = filter && !filter.routes ? filter : null;
 
   const letter = $("s-letter");
   letter.className = "letter" + (mode === "tube" ? " tube" : "");
   letter.textContent = mode === "bus" ? (cleanLetter(s.stopLetter) || "•") : "";
   $("s-name").textContent = mode === "tube" ? cleanStation(s.commonName) : s.commonName;
-  $("s-sub").textContent = mode === "tube" ? "Underground station" : (s.indicator || "");
-  $("s-routes").innerHTML = (s.lines || []).map((l) =>
-    mode === "tube" ? `<span class="ln" style="${lineStyle(l.id)}">${esc(l.name)}</span>` : `<span>${esc(l.name)}</span>`
-  ).join("");
-  updateFavBtn();
+  renderHeader();
   arrivals = []; fetchedAt = 0;
   $("s-list").innerHTML = '<div class="note">Loading departures…</div>';
   $("s-updated").textContent = "";
   $("sheet").classList.remove("closed");
-  $("favs").hidden = true;
+  $("saved-btn").hidden = true;
 
   clearInterval(refreshTimer); clearInterval(tickTimer);
   loadArrivals();
   refreshTimer = setInterval(loadArrivals, REFRESH_MS);
   tickTimer = setInterval(renderArrivals, 1000);
 }
+function renderHeader() {
+  const s = currentStop; if (!s) return;
+  if (mode === "tube") {
+    $("s-sub").textContent = "Underground station";
+    $("s-routes").innerHTML = (s.lines || []).map((l) => `<span class="ln" style="${lineStyle(l.id)}">${esc(l.name)}</span>`).join("");
+  } else {
+    $("s-sub").textContent = (s.indicator ? s.indicator + " · " : "") + (selRoutes.size ? "Showing selected routes" : "Tap routes to filter");
+    $("s-routes").innerHTML = (s.lines || []).map((l) =>
+      `<button data-r="${esc(l.name)}" aria-pressed="${selRoutes.has(l.name)}">${esc(l.name)}</button>`).join("");
+  }
+  updateFavBtn();
+}
+$("s-routes").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-r]"); if (!b || mode !== "bus") return;
+  const r = b.dataset.r;
+  selRoutes.has(r) ? selRoutes.delete(r) : selRoutes.add(r);
+  renderHeader(); renderArrivals();
+});
+function currentFilter() {
+  return mode === "bus" && selRoutes.size ? { routes: [...selRoutes] } : null;
+}
+function updateFavBtn() {
+  const on = !!currentStop && isSaved(favKey(currentStop.naptanId, currentFilter()));
+  $("s-fav").setAttribute("aria-pressed", String(on));
+  const what = mode === "bus" && selRoutes.size ? "these routes" : "this stop";
+  $("s-fav").setAttribute("aria-label", on ? `Remove ${what} from saved` : `Save ${what}`);
+}
+$("s-fav").addEventListener("click", () => {
+  if (!currentStop) return;
+  toggleSaved(currentStop, currentFilter());
+  updateFavBtn();
+});
 function closeStop() {
   $("sheet").classList.add("closed");
   clearInterval(refreshTimer); clearInterval(tickTimer); arrCtl?.abort();
@@ -602,14 +701,17 @@ function dueText(secs) {
   const m = Math.floor(secs / 60);
   return m < 1 ? "Due" : `${m} min`;
 }
+const shortDue = (secs) => { const m = Math.floor(secs / 60); return m < 1 ? "Due" : `${m}m`; };
+
 function renderArrivals() {
   if (!fetchedAt) return;
   const elapsed = (Date.now() - fetchedAt) / 1000;
-  const live = arrivals
+  let live = arrivals
     .map((a) => ({ ...a, left: a.timeToStation - elapsed }))
     .filter((a) => a.left > -30);
+  if (mode === "bus" && selRoutes.size) live = live.filter((a) => selRoutes.has(a.lineName));
 
-  if (!live.length) {
+  if (!live.length && !(mode === "tube" && platformFocus)) {
     $("s-list").innerHTML = `<div class="note">No ${mode === "bus" ? "buses" : "trains"} due in the next 30 minutes.</div>`;
   } else if (mode === "bus") {
     $("s-list").innerHTML = `<div class="section"><div class="board">${live.slice(0, 12).map((a, i) => `
@@ -626,7 +728,7 @@ function renderArrivals() {
   $("s-updated").textContent = "Updated " + t.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
-// Tube: one board per line + platform, next 3 trains on each
+// Tube: one board per line + platform, next 3 trains on each, each with its own save star
 function renderTube(live) {
   const groups = new Map();
   for (const a of live) {
@@ -635,60 +737,135 @@ function renderTube(live) {
     groups.get(key).trains.push(a);
   }
   const order = (currentStop?.lines || []).map((l) => l.id);
-  const sorted = [...groups.values()].sort((a, b) =>
+  let sorted = [...groups.values()].sort((a, b) =>
     (order.indexOf(a.lineId) - order.indexOf(b.lineId)) || a.platform.localeCompare(b.platform, "en", { numeric: true }));
-  const multiLine = new Set(sorted.map((g) => g.lineId)).size > 1;
+  const multiLine = new Set(sorted.map((g) => g.lineId)).size > 1 || (currentStop?.lines || []).length > 1;
+  if (platformFocus) {
+    const f = platformFocus;
+    sorted = sorted.filter((g) => g.lineId === f.lineId && g.platform === f.platform);
+    if (!sorted.length) sorted = [{ lineId: f.lineId, lineName: f.lineName, platform: f.platform, trains: [] }];
+  }
 
-  $("s-list").innerHTML = sorted.map((g) => `
+  $("s-list").innerHTML = sorted.map((g) => {
+    const fk = favKey(currentStop.naptanId, { lineId: g.lineId, platform: g.platform });
+    const on = isSaved(fk);
+    return `
     <div class="section">
       <div class="sec-head">
         ${multiLine ? `<span class="line-tag" style="${lineStyle(g.lineId)}">${esc(g.lineName)}</span>` : ""}
         <span class="plat">${esc(g.platform || g.lineName)}</span>
+        ${g.platform ? `<button class="pstar" data-line="${esc(g.lineId)}" data-name="${esc(g.lineName)}" data-plat="${esc(g.platform)}" aria-pressed="${on}" aria-label="${on ? "Remove this platform from saved" : "Save this platform"}">${STAR_SVG}</button>` : ""}
       </div>
-      <div class="board tube">${g.trains.slice(0, 3).map((a, i) => `
+      ${g.trains.length ? `<div class="board tube">${g.trains.slice(0, 3).map((a, i) => `
         <div class="b-row">
           <span class="b-n">${i + 1}</span>
           <span class="b-dest"><span>${esc(cleanStation(a.destinationName) || a.towards || "Check front of train")}</span>${a.currentLocation ? `<small>${esc(a.currentLocation)}</small>` : ""}</span>
           <span class="b-due${a.left < 60 ? " now" : ""}">${dueText(Math.max(0, a.left))}</span>
-        </div>`).join("")}</div>
-    </div>`).join("");
+        </div>`).join("")}</div>` : `<div class="note">No trains due on this platform right now.</div>`}
+    </div>`;
+  }).join("") + (platformFocus ? `<button class="show-all" id="show-all">Show all platforms</button>` : "");
 }
-
-// ---------- Favourites ----------
-function updateFavBtn() {
-  const on = !!currentStop && favs.some((f) => f.id === currentStop.naptanId);
-  $("s-fav").setAttribute("aria-pressed", String(on));
-  $("s-fav").setAttribute("aria-label", on ? "Remove from saved" : "Save");
-}
-$("s-fav").addEventListener("click", () => {
-  if (!currentStop) return;
-  const s = currentStop;
-  if (favs.some((f) => f.id === s.naptanId)) favs = favs.filter((f) => f.id !== s.naptanId);
-  else favs.push({
-    id: s.naptanId, mode,
-    name: mode === "tube" ? cleanStation(s.commonName) : s.commonName,
-    commonName: s.commonName,
-    letter: cleanLetter(s.stopLetter), lat: s.lat, lon: s.lon, indicator: s.indicator,
-    lines: (s.lines || []).map((l) => ({ id: l.id, name: l.name }))
-  });
-  store.set("favs", favs);
-  updateFavBtn(); refreshPin(s.naptanId);
+$("s-list").addEventListener("click", (e) => {
+  if (e.target.closest("#show-all")) { platformFocus = null; renderArrivals(); return; }
+  const b = e.target.closest(".pstar"); if (!b || !currentStop) return;
+  toggleSaved(currentStop, { lineId: b.dataset.line, lineName: b.dataset.name, platform: b.dataset.plat });
+  renderArrivals();
 });
+
+// ---------- Saved sheet ----------
+let savedData = new Map(), savedTimer = null, savedTick = null, editing = false;
 function renderFavs() {
-  const el = $("favs");
-  const list = favs.filter((f) => f.mode === mode);
-  if (!list.length || currentStop) { el.hidden = true; return; }
-  el.innerHTML = list.map((f) =>
-    `<button class="fav-chip" data-id="${esc(f.id)}"><span class="l${f.mode === "tube" ? " tube" : ""}">${f.mode === "bus" ? esc(f.letter || "•") : ""}</span><span>${esc(f.name)}</span></button>`
-  ).join("");
-  el.hidden = false;
+  const n = favs.length;
+  $("saved-count").textContent = n;
+  $("saved-count").hidden = !n;
+  $("saved-btn").hidden = !!currentStop || !$("saved").classList.contains("closed");
 }
-$("favs").addEventListener("click", (e) => {
-  const b = e.target.closest(".fav-chip"); if (!b) return;
-  const f = favs.find((x) => x.id === b.dataset.id); if (!f) return;
+function openSaved() {
+  closeStop();
+  editing = false;
+  $("saved").classList.remove("closed");
+  $("saved-btn").hidden = true;
+  renderSaved();
+  loadSaved();
+  clearInterval(savedTimer); clearInterval(savedTick);
+  savedTimer = setInterval(loadSaved, REFRESH_MS);
+  savedTick = setInterval(renderSaved, 5000);
+}
+function closeSaved() {
+  if ($("saved").classList.contains("closed")) return;
+  $("saved").classList.add("closed");
+  clearInterval(savedTimer); clearInterval(savedTick);
+  renderFavs();
+}
+$("saved-btn").addEventListener("click", openSaved);
+$("sv-close").addEventListener("click", closeSaved);
+$("sv-edit").addEventListener("click", () => { editing = !editing; renderSaved(); });
+
+async function loadSaved() {
+  const ids = [...new Set(favs.map((f) => f.id))];
+  await Promise.all(ids.map(async (id) => {
+    try {
+      const data = await getJSON(url(`/StopPoint/${encodeURIComponent(id)}/Arrivals`));
+      savedData.set(id, { at: Date.now(), list: data.sort((a, b) => a.timeToStation - b.timeToStation) });
+    } catch { if (!savedData.has(id)) savedData.set(id, { at: 0, list: null }); }
+  }));
+  renderSaved();
+}
+function summary(f) {
+  const d = savedData.get(f.id);
+  if (!d) return { text: "Loading…", dim: true };
+  if (!d.list) return { text: "Couldn't load times", dim: true };
+  const elapsed = (Date.now() - d.at) / 1000;
+  let list = d.list.map((a) => ({ ...a, left: a.timeToStation - elapsed })).filter((a) => a.left > -30);
+  if (f.mode === "tube") list = list.filter((a) => a.modeName === "tube");
+  list = applyFilter(list, f.filter).slice(0, 3);
+  if (!list.length) return { text: `No ${f.mode === "bus" ? "buses" : "trains"} due`, dim: true };
+  const parts = list.map((a) => {
+    const t = shortDue(Math.max(0, a.left));
+    if (f.mode === "bus") return `${a.lineName} ${t}`;
+    if (f.filter) return `${cleanStation(a.destinationName) || a.towards || "Train"} ${t}`;
+    return `${a.lineName} ${direction(a.platformName).charAt(0)} ${t}`;
+  });
+  return { text: parts.join(" · "), dim: false };
+}
+function renderSaved() {
+  const el = $("sv-list");
+  $("sv-edit").hidden = !favs.length;
+  $("sv-edit").textContent = editing ? "Done" : "Edit";
+  $("sv-sub").textContent = favs.length ? (editing ? "Remove the ones you don't need" : "Tap one for the full board") : "";
+  if (!favs.length) {
+    el.innerHTML = '<div class="note">Open a stop and tap the star to save it. You can also save just some bus routes, or one Tube platform.</div>';
+    return;
+  }
+  el.innerHTML = favs.map((f) => {
+    const s = summary(f);
+    const icon = f.mode === "tube" ? `<span class="sv-ic tube"></span>` : `<span class="sv-ic">${esc(f.letter || "•")}</span>`;
+    return `<div class="sv-row">
+      <button class="sv-main" data-k="${esc(f.key)}">
+        <span class="sv-top">${icon}<span class="sv-txt"><b>${esc(f.name)}</b><small>${esc(filterLabel(f))}</small></span></span>
+        <span class="sv-next${s.dim ? " dim" : ""}">${esc(s.text)}</span>
+      </button>
+      ${editing ? `<button class="sv-del" data-del="${esc(f.key)}" aria-label="Remove ${esc(f.name)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>` : ""}
+    </div>`;
+  }).join("");
+}
+$("sv-list").addEventListener("click", (e) => {
+  const del = e.target.closest("[data-del]");
+  if (del) {
+    const f = favs.find((x) => x.key === del.dataset.del);
+    favs = favs.filter((x) => x.key !== del.dataset.del); saveFavs();
+    if (f) refreshPin(f.id);
+    if (!favs.length) editing = false;
+    renderSaved(); renderFavs();
+    return;
+  }
+  const b = e.target.closest(".sv-main"); if (!b || editing) return;
+  const f = favs.find((x) => x.key === b.dataset.k); if (!f) return;
+  if (f.mode !== mode) setMode(f.mode, { load: false });
   const s = stops.get(f.id) || { naptanId: f.id, commonName: f.commonName || f.name, stopLetter: f.letter, indicator: f.indicator, lat: f.lat, lon: f.lon, lines: f.lines || [] };
-  map.setView([f.lat, f.lon], Math.max(map.getZoom(), mode === "tube" ? 15 : 17));
-  openStop(s);
+  map.setView([f.lat, f.lon], f.mode === "tube" ? Math.max(map.getZoom(), 15) : Math.max(map.getZoom(), 17));
+  loadStops();
+  openStop(s, f.filter);
 });
 
 // Pause polling when the app is in the background
