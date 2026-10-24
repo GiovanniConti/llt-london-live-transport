@@ -31,7 +31,7 @@
   --shadow: 0 6px 24px rgba(20, 22, 28, .18);
   --font: "Overpass", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "Overpass Mono", ui-monospace, "SF Mono", Menlo, monospace;
-  --tile-filter: sepia(.32) saturate(.85) brightness(1.03);
+  --tile-filter: grayscale(.55) sepia(.5) saturate(.9) brightness(1.04) contrast(.9);
   --station-ink: #1f1d17;
   /* Departure board */
   --paper: #f6f2e0;
@@ -55,7 +55,7 @@
     --navy: #4a6fd8;
     --chip: #2a2e33;
     --shadow: 0 6px 24px rgba(0, 0, 0, .5);
-    --tile-filter: sepia(.25) brightness(1.08);
+    --tile-filter: grayscale(.6) invert(1) hue-rotate(180deg) sepia(.35) brightness(.85) contrast(.9);
     --station-ink: #0f0f0e;
     --paper: #1d1c17;
     --paper-ink: #ece6cf;
@@ -373,16 +373,11 @@ const stops = new Map();   // naptanId -> stop (current mode only)
 // ---------- Map ----------
 const last = store.get("view", { lat: 51.5074, lng: -0.1278, z: 16 });
 const map = L.map("map", { zoomControl: false }).setView([last.lat, last.lng], last.z);
-// Base map: CARTO Voyager (light) / Dark Matter (dark), tinted warm in CSS
-const darkQ = matchMedia("(prefers-color-scheme: dark)");
-const tileUrl = () => darkQ.matches
-  ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-  : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
-const tiles = L.tileLayer(tileUrl(), {
-  subdomains: "abcd", maxZoom: 20,
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a> · Powered by TfL Open Data'
+// Base map: OpenStreetMap, tinted to a warm paper tone in CSS (no key needed)
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · Powered by TfL Open Data'
 }).addTo(map);
-darkQ.addEventListener?.("change", () => tiles.setUrl(tileUrl()));
 
 // Tube lines: route shapes from TfL, cached on the device for 30 days
 map.createPane("lines").style.zIndex = 350;
