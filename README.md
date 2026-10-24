@@ -21,7 +21,8 @@ It's a single static page (`index.html`) hosted on GitHub Pages, with no build s
 - **Live data:** [TfL Unified API](https://api.tfl.gov.uk)
   - `GET /StopPoint?lat&lon&stopTypes=NaptanPublicBusCoachTram&modes=bus&radius` for bus stops, and `stopTypes=NaptanMetroStation&modes=tube` for Tube stations
   - `GET /StopPoint/{naptanId}/Arrivals` for live predictions at a stop or station
-- **Map:** [Leaflet](https://leafletjs.com) with [OpenStreetMap](https://www.openstreetmap.org/copyright) tiles
+- **Map:** [Leaflet](https://leafletjs.com) with [CARTO](https://carto.com/attributions) basemaps (OpenStreetMap data), tinted warm
+- **Tube lines:** `GET /Line/{id}/Route/Sequence/outbound` route shapes, drawn in line colours and cached on the device for 30 days
 - **Favourites and last map position:** saved in the browser's local storage on your device
 
 ### TfL API key (optional)
