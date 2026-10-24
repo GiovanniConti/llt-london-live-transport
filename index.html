@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LLT – London Live Transport</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="LLT">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#16181b" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;800&family=Overpass+Mono:wght@600&display=swap">
+<style>
+/* Layout: full-bleed map, floating controls, bottom sheet for a stop's departures */
+:root {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --fg: #1b1d21;
+  --muted: #646a73;
+  --line: #e4e6ea;
+  --red: #d4261b;
+  --red-ink: #ffffff;
+  --chip: #f2f3f5;
+  --shadow: 0 6px 24px rgba(20, 22, 28, .18);
+  --font: "Overpass", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Overpass Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --tile-filter: none;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16181b;
+    --surface: #1f2226;
+    --fg: #eceef1;
+    --muted: #9aa0a9;
+    --line: #30343a;
+    --red: #e5392d;
+    --chip: #2a2e33;
+    --shadow: 0 6px 24px rgba(0, 0, 0, .5);
+    --tile-filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.9) saturate(.6);
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.4 var(--font);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+
+#map { position: fixed; inset: 0; background: var(--bg); }
+.leaflet-tile-pane { filter: var(--tile-filter); }
+.leaflet-control-attribution {
+  background: color-mix(in srgb, var(--surface) 80%, transparent) !important;
+  color: var(--muted) !important;
+  font-size: 10px !important;
+}
+.leaflet-control-attribution a { color: var(--muted) !important; }
+
+/* Top bar */
+.topbar {
+  position: fixed; z-index: 500;
+  top: calc(env(safe-area-inset-top, 0px) + 10px);
+  left: max(12px, env(safe-area-inset-left, 0px));
+  right: max(12px, env(safe-area-inset-right, 0px));
+  display: flex; gap: 8px; align-items: center; justify-content: space-between;
+  pointer-events: none;
+}
+.topbar > * { pointer-events: auto; }
+.brand {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface); border-radius: 999px; padding: 6px 14px 6px 6px;
+  box-shadow: var(--shadow); font-weight: 800; letter-spacing: .01em;
+}
+.brand .dot {
+  width: 26px; height: 26px; border-radius: 50%; background: var(--red);
+  display: grid; place-items: center;
+}
+.brand .dot::after { content: ""; width: 12px; height: 12px; border-radius: 50%; background: var(--surface); }
+.round {
+  width: 44px; height: 44px; border-radius: 50%; border: 0;
+  background: var(--surface); box-shadow: var(--shadow);
+  display: grid; place-items: center;
+}
+.round svg { width: 20px; height: 20px; }
+.hint {
+  position: fixed; z-index: 500; left: 50%; transform: translateX(-50%);
+  top: calc(env(safe-area-inset-top, 0px) + 66px);
+  background: var(--surface); color: var(--fg); box-shadow: var(--shadow);
+  border-radius: 999px; padding: 7px 14px; font-size: 13px; font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Stop pins */
+.pin {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--red); color: var(--red-ink);
+  border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.35);
+  display: grid; place-items: center;
+  font: 800 11px/1 var(--font); letter-spacing: -.02em;
+}
+.pin.fav { box-shadow: 0 0 0 3px #f5b400, 0 2px 6px rgba(0,0,0,.35); }
+.pin.sel { transform: scale(1.25); }
+.me {
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #2f7bf6; border: 3px solid #fff; box-shadow: 0 0 0 6px rgba(47,123,246,.25);
+}
+
+/* Bottom sheet */
+.sheet {
+  position: fixed; z-index: 600; left: 0; right: 0; bottom: 0;
+  background: var(--surface); color: var(--fg);
+  border-radius: 18px 18px 0 0; box-shadow: var(--shadow);
+  max-height: 62%; display: flex; flex-direction: column;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  transform: translateY(0); transition: transform .25s ease;
+}
+.sheet.closed { transform: translateY(105%); }
+.grab { width: 38px; height: 5px; border-radius: 3px; background: var(--line); margin: 8px auto 2px; }
+.sheet-head {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 8px max(16px, env(safe-area-inset-right, 0px)) 12px max(16px, env(safe-area-inset-left, 0px));
+  border-bottom: 1px solid var(--line);
+}
+.letter {
+  flex: none; width: 40px; height: 40px; border-radius: 50%;
+  background: var(--red); color: var(--red-ink);
+  display: grid; place-items: center; font-weight: 800; font-size: 16px;
+}
+.titles { flex: 1; min-width: 0; }
+.titles h2 { margin: 0; font-size: 18px; line-height: 1.2; font-weight: 800; text-wrap: balance; }
+.titles .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.routes { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.routes span {
+  font: 600 11px/1 var(--mono); padding: 4px 6px; border-radius: 4px;
+  background: var(--chip); color: var(--fg);
+}
+.head-actions { display: flex; gap: 6px; flex: none; }
+.icon-btn {
+  width: 36px; height: 36px; border-radius: 50%; border: 0;
+  background: var(--chip); display: grid; place-items: center;
+}
+.icon-btn svg { width: 18px; height: 18px; }
+.icon-btn[aria-pressed="true"] svg { fill: #f5b400; stroke: #f5b400; }
+
+.list { overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 4px 0 8px; }
+.row {
+  display: grid; grid-template-columns: 56px 1fr auto; gap: 12px; align-items: center;
+  padding: 10px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px));
+  border-bottom: 1px solid var(--line);
+}
+.row:last-child { border-bottom: 0; }
+.route {
+  background: var(--red); color: var(--red-ink);
+  font: 800 15px/1 var(--font); text-align: center;
+  padding: 7px 4px 5px; border-radius: 6px;
+}
+.dest { min-width: 0; }
+.dest b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dest small { color: var(--muted); font-size: 12px; }
+.due { font: 600 17px/1 var(--mono); font-variant-numeric: tabular-nums; text-align: right; min-width: 56px; }
+.due.now { color: var(--red); }
+.note { padding: 18px 16px; color: var(--muted); text-align: center; }
+.foot {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px));
+  color: var(--muted); font-size: 12px; border-top: 1px solid var(--line);
+}
+.foot button { background: none; border: 0; color: var(--red); font-weight: 600; padding: 4px 0; }
+
+/* Favourites strip */
+.favs {
+  position: fixed; z-index: 550; left: 0; right: 0;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 22px);
+  display: flex; gap: 8px; overflow-x: auto;
+  padding: 4px max(12px, env(safe-area-inset-right, 0px)) 4px max(12px, env(safe-area-inset-left, 0px));
+  scrollbar-width: none;
+}
+.favs::-webkit-scrollbar { display: none; }
+.fav-chip {
+  flex: none; display: flex; align-items: center; gap: 8px;
+  border: 0; background: var(--surface); box-shadow: var(--shadow);
+  border-radius: 999px; padding: 6px 14px 6px 6px; max-width: 240px;
+}
+.fav-chip .l {
+  width: 26px; height: 26px; border-radius: 50%; background: var(--red); color: var(--red-ink);
+  display: grid; place-items: center; font-weight: 800; font-size: 11px; flex: none;
+}
+.fav-chip span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; font-size: 13px; }
+
+@media (prefers-reduced-motion: reduce) { .sheet { transition: none; } }
+</style>
+</head>
+<body>
+<div id="map" aria-label="Map of bus stops"></div>
+
+<div class="topbar">
+  <div class="brand"><span class="dot" aria-hidden="true"></span>LLT</div>
+  <button class="round" id="locate" aria-label="Show my location">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+  </button>
+</div>
+<div class="hint" id="hint" hidden>Zoom in to see bus stops</div>
+
+<div class="favs" id="favs" hidden></div>
+
+<section class="sheet closed" id="sheet" aria-live="polite">
+  <div class="grab" aria-hidden="true"></div>
+  <div class="sheet-head">
+    <div class="letter" id="s-letter"></div>
+    <div class="titles">
+      <h2 id="s-name"></h2>
+      <div class="sub" id="s-sub"></div>
+      <div class="routes" id="s-routes"></div>
+    </div>
+    <div class="head-actions">
+      <button class="icon-btn" id="s-fav" aria-pressed="false" aria-label="Save stop">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"/></svg>
+      </button>
+      <button class="icon-btn" id="s-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="list" id="s-list"></div>
+  <div class="foot"><span id="s-updated"></span><button id="s-refresh">Refresh</button></div>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+// Optional: a free key from https://api-portal.tfl.gov.uk raises TfL's rate limit.
+const APP_KEY = "";
+const API = "https://api.tfl.gov.uk";
+const MIN_ZOOM = 16;
+const REFRESH_MS = 30000;
+
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+
+function url(path, params = {}) {
+  const u = new URL(API + path);
+  for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
+  if (APP_KEY) u.searchParams.set("app_key", APP_KEY);
+  return u.toString();
+}
+async function getJSON(u, signal) {
+  const r = await fetch(u, { signal });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+const cleanLetter = (s) => (s || "").replace(/^->/, "").slice(0, 3);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// ---------- Map ----------
+const last = store.get("view", { lat: 51.5074, lng: -0.1278, z: 16 });
+const map = L.map("map", { zoomControl: false, attributionControl: true })
+  .setView([last.lat, last.lng], last.z);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · Powered by TfL Open Data'
+}).addTo(map);
+
+const markers = new Map(); // naptanId -> marker
+const stops = new Map();   // naptanId -> stop
+let favs = store.get("favs", []); // [{id, name, letter, lat, lon}]
+let selectedId = null;
+
+function pinIcon(stop) {
+  const cls = ["pin"];
+  if (favs.some((f) => f.id === stop.naptanId)) cls.push("fav");
+  if (stop.naptanId === selectedId) cls.push("sel");
+  return L.divIcon({
+    className: "",
+    html: `<div class="${cls.join(" ")}">${esc(cleanLetter(stop.stopLetter))}</div>`,
+    iconSize: [28, 28], iconAnchor: [14, 14]
+  });
+}
+function refreshPin(id) {
+  const m = markers.get(id), s = stops.get(id);
+  if (m && s) m.setIcon(pinIcon(s));
+}
+
+let loadCtl = null, loadTimer = null;
+function scheduleLoad() {
+  clearTimeout(loadTimer);
+  loadTimer = setTimeout(loadStops, 250);
+}
+async function loadStops() {
+  const c = map.getCenter();
+  store.set("view", { lat: c.lat, lng: c.lng, z: map.getZoom() });
+  if (map.getZoom() < MIN_ZOOM) { $("hint").hidden = false; return; }
+  $("hint").hidden = true;
+
+  const b = map.getBounds();
+  const radius = Math.min(1000, Math.max(200, Math.round(c.distanceTo(b.getNorthEast()))));
+  loadCtl?.abort();
+  loadCtl = new AbortController();
+  try {
+    const data = await getJSON(url("/StopPoint", {
+      lat: c.lat.toFixed(5), lon: c.lng.toFixed(5),
+      stopTypes: "NaptanPublicBusCoachTram", modes: "bus", radius
+    }), loadCtl.signal);
+    for (const s of data.stopPoints || []) {
+      if (!s.lines || s.lines.length === 0) continue; // unused stops
+      stops.set(s.naptanId, s);
+      if (markers.has(s.naptanId)) continue;
+      const m = L.marker([s.lat, s.lon], { icon: pinIcon(s), title: `${s.commonName} (${s.indicator || ""})` })
+        .on("click", () => openStop(s))
+        .addTo(map);
+      markers.set(s.naptanId, m);
+    }
+  } catch (e) {
+    if (e.name !== "AbortError") showHint("Couldn't load stops. Check your connection.");
+  }
+}
+function showHint(text) {
+  $("hint").textContent = text; $("hint").hidden = false;
+  setTimeout(() => { $("hint").textContent = "Zoom in to see bus stops"; if (map.getZoom() >= MIN_ZOOM) $("hint").hidden = true; }, 3000);
+}
+map.on("moveend", scheduleLoad);
+
+// ---------- Location ----------
+let meMarker = null;
+function locate(fly) {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition((p) => {
+    const ll = [p.coords.latitude, p.coords.longitude];
+    if (!meMarker) meMarker = L.marker(ll, { icon: L.divIcon({ className: "", html: '<div class="me"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }), interactive: false, zIndexOffset: -100 }).addTo(map);
+    else meMarker.setLatLng(ll);
+    if (fly) map.setView(ll, Math.max(map.getZoom(), 17));
+  }, () => { if (fly) showHint("Location is off. Allow it in Settings to centre the map."); },
+  { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
+}
+$("locate").addEventListener("click", () => locate(true));
+
+// ---------- Stop sheet ----------
+let arrivals = [], fetchedAt = 0, refreshTimer = null, tickTimer = null, arrCtl = null, currentStop = null;
+
+function openStop(s) {
+  const prev = selectedId;
+  selectedId = s.naptanId; currentStop = s;
+  if (prev) refreshPin(prev);
+  refreshPin(s.naptanId);
+
+  $("s-letter").textContent = cleanLetter(s.stopLetter) || "•";
+  $("s-name").textContent = s.commonName;
+  $("s-sub").textContent = s.indicator || "";
+  $("s-routes").innerHTML = (s.lines || []).map((l) => `<span>${esc(l.name)}</span>`).join("");
+  updateFavBtn();
+  arrivals = []; fetchedAt = 0;
+  $("s-list").innerHTML = '<div class="note">Loading departures…</div>';
+  $("s-updated").textContent = "";
+  $("sheet").classList.remove("closed");
+  $("favs").hidden = true;
+
+  clearInterval(refreshTimer); clearInterval(tickTimer);
+  loadArrivals();
+  refreshTimer = setInterval(loadArrivals, REFRESH_MS);
+  tickTimer = setInterval(renderArrivals, 1000);
+}
+function closeStop() {
+  $("sheet").classList.add("closed");
+  clearInterval(refreshTimer); clearInterval(tickTimer); arrCtl?.abort();
+  const prev = selectedId; selectedId = null; currentStop = null;
+  if (prev) refreshPin(prev);
+  renderFavs();
+}
+$("s-close").addEventListener("click", closeStop);
+$("s-refresh").addEventListener("click", () => loadArrivals());
+
+async function loadArrivals() {
+  if (!currentStop) return;
+  arrCtl?.abort(); arrCtl = new AbortController();
+  const id = currentStop.naptanId;
+  try {
+    const data = await getJSON(url(`/StopPoint/${encodeURIComponent(id)}/Arrivals`), arrCtl.signal);
+    if (!currentStop || currentStop.naptanId !== id) return;
+    arrivals = data.sort((a, b) => a.timeToStation - b.timeToStation);
+    fetchedAt = Date.now();
+    renderArrivals();
+  } catch (e) {
+    if (e.name === "AbortError") return;
+    if (!arrivals.length) $("s-list").innerHTML = '<div class="note">Couldn\'t load departures. Tap Refresh to try again.</div>';
+    $("s-updated").textContent = "Update failed";
+  }
+}
+function dueText(secs) {
+  const m = Math.floor(secs / 60);
+  return m < 1 ? "Due" : `${m} min`;
+}
+function renderArrivals() {
+  if (!fetchedAt) return;
+  const elapsed = (Date.now() - fetchedAt) / 1000;
+  const live = arrivals
+    .map((a) => ({ ...a, left: a.timeToStation - elapsed }))
+    .filter((a) => a.left > -30);
+  if (!live.length) {
+    $("s-list").innerHTML = '<div class="note">No buses due in the next 30 minutes.</div>';
+  } else {
+    $("s-list").innerHTML = live.map((a) => {
+      const now = a.left < 60;
+      return `<div class="row">
+        <div class="route">${esc(a.lineName)}</div>
+        <div class="dest"><b>${esc(a.destinationName)}</b>${a.towards ? `<small>towards ${esc(a.towards)}</small>` : ""}</div>
+        <div class="due${now ? " now" : ""}">${dueText(Math.max(0, a.left))}</div>
+      </div>`;
+    }).join("");
+  }
+  const t = new Date(fetchedAt);
+  $("s-updated").textContent = "Updated " + t.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+// ---------- Favourites ----------
+function updateFavBtn() {
+  const on = !!currentStop && favs.some((f) => f.id === currentStop.naptanId);
+  $("s-fav").setAttribute("aria-pressed", String(on));
+  $("s-fav").setAttribute("aria-label", on ? "Remove from saved stops" : "Save stop");
+}
+$("s-fav").addEventListener("click", () => {
+  if (!currentStop) return;
+  const s = currentStop;
+  if (favs.some((f) => f.id === s.naptanId)) favs = favs.filter((f) => f.id !== s.naptanId);
+  else favs.push({ id: s.naptanId, name: s.commonName, letter: cleanLetter(s.stopLetter), lat: s.lat, lon: s.lon, indicator: s.indicator, lines: s.lines });
+  store.set("favs", favs);
+  updateFavBtn(); refreshPin(s.naptanId);
+});
+function renderFavs() {
+  const el = $("favs");
+  if (!favs.length || currentStop) { el.hidden = true; return; }
+  el.innerHTML = favs.map((f, i) =>
+    `<button class="fav-chip" data-i="${i}"><span class="l">${esc(f.letter || "•")}</span><span>${esc(f.name)}</span></button>`
+  ).join("");
+  el.hidden = false;
+}
+$("favs").addEventListener("click", (e) => {
+  const b = e.target.closest(".fav-chip"); if (!b) return;
+  const f = favs[+b.dataset.i];
+  const s = stops.get(f.id) || { naptanId: f.id, commonName: f.name, stopLetter: f.letter, indicator: f.indicator, lat: f.lat, lon: f.lon, lines: f.lines || [] };
+  map.setView([f.lat, f.lon], Math.max(map.getZoom(), 17));
+  openStop(s);
+});
+
+// Pause polling when the app is in the background
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) { clearInterval(refreshTimer); }
+  else if (currentStop) { loadArrivals(); clearInterval(refreshTimer); refreshTimer = setInterval(loadArrivals, REFRESH_MS); }
+});
+
+renderFavs();
+loadStops();
+locate(!store.get("view", null));
+</script>
+</body>
+</html>
