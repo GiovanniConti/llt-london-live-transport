@@ -145,8 +145,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .hit { position: relative; width: 30px; height: 30px; display: grid; place-items: center; }
 .pin.tube {
-  width: 16px; height: 16px; background: transparent;
-  border: 3.5px solid var(--station-ink); box-shadow: 0 0 0 1.5px rgba(255,255,255,.7);
+  width: 16px; height: 16px;
+  background: color-mix(in srgb, var(--station-ink) 10%, transparent);
+  border: 3.5px solid color-mix(in srgb, var(--station-ink) 50%, transparent);
+  box-shadow: none;
 }
 .pin.fav { box-shadow: 0 0 0 3px #f5b400, 0 2px 6px rgba(0,0,0,.35); }
 .pin.sel { transform: scale(1.25); }
