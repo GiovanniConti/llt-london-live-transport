@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;800&family=Overpass+Mono:wght@600&display=swap">
 <style>
-/* Layout: full-bleed map, floating controls, bottom sheet for a stop's departures */
+/* Layout: full-bleed map, floating Bus | Tube switch, bottom sheet for a stop's departures */
 :root {
   --bg: #ffffff;
   --surface: #ffffff;
@@ -24,8 +24,10 @@
   --muted: #646a73;
   --line: #e4e6ea;
   --red: #d4261b;
-  --red-ink: #ffffff;
+  --navy: #1d3a8f;
+  --pin-ink: #ffffff;
   --chip: #f2f3f5;
+  --accent: var(--red);
   --shadow: 0 6px 24px rgba(20, 22, 28, .18);
   --font: "Overpass", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "Overpass Mono", ui-monospace, "SF Mono", Menlo, monospace;
@@ -39,12 +41,14 @@
     --muted: #9aa0a9;
     --line: #30343a;
     --red: #e5392d;
+    --navy: #4a6fd8;
     --chip: #2a2e33;
     --shadow: 0 6px 24px rgba(0, 0, 0, .5);
     --tile-filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.9) saturate(.6);
     color-scheme: dark;
   }
 }
+body[data-mode="tube"] { --accent: var(--navy); }
 
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
@@ -56,7 +60,7 @@ body {
   overflow: hidden;
 }
 button { font: inherit; color: inherit; cursor: pointer; }
-:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 #map { position: fixed; inset: 0; background: var(--bg); }
 .leaflet-tile-pane { filter: var(--tile-filter); }
@@ -78,17 +82,29 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .topbar > * { pointer-events: auto; }
 .brand {
-  display: flex; align-items: center; gap: 8px;
-  background: var(--surface); border-radius: 999px; padding: 6px 14px 6px 6px;
-  box-shadow: var(--shadow); font-weight: 800; letter-spacing: .01em;
+  display: flex; align-items: center; gap: 8px; flex: none;
+  background: var(--surface); border-radius: 999px; padding: 6px 12px 6px 6px;
+  box-shadow: var(--shadow); font-weight: 800; letter-spacing: .02em;
 }
 .brand .dot {
-  width: 26px; height: 26px; border-radius: 50%; background: var(--red);
-  display: grid; place-items: center;
+  width: 26px; height: 26px; border-radius: 50%; background: var(--accent);
+  display: grid; place-items: center; transition: background .2s;
 }
 .brand .dot::after { content: ""; width: 12px; height: 12px; border-radius: 50%; background: var(--surface); }
+
+.switch {
+  display: flex; padding: 4px; gap: 2px;
+  background: var(--surface); border-radius: 999px; box-shadow: var(--shadow);
+}
+.switch button {
+  border: 0; background: none; border-radius: 999px;
+  padding: 7px 16px 5px; font-weight: 800; font-size: 14px; letter-spacing: .02em;
+  color: var(--muted);
+}
+.switch button[aria-pressed="true"] { background: var(--accent); color: var(--pin-ink); }
+
 .round {
-  width: 44px; height: 44px; border-radius: 50%; border: 0;
+  width: 44px; height: 44px; border-radius: 50%; border: 0; flex: none;
   background: var(--surface); box-shadow: var(--shadow);
   display: grid; place-items: center;
 }
@@ -101,16 +117,24 @@ button { font: inherit; color: inherit; cursor: pointer; }
   white-space: nowrap;
 }
 
-/* Stop pins */
+/* Pins */
 .pin {
   width: 28px; height: 28px; border-radius: 50%;
-  background: var(--red); color: var(--red-ink);
+  background: var(--red); color: var(--pin-ink);
   border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.35);
   display: grid; place-items: center;
   font: 800 11px/1 var(--font); letter-spacing: -.02em;
 }
+.pin.tube { background: var(--navy); border-radius: 8px; width: 26px; height: 26px; }
+.pin.tube::after { content: ""; width: 10px; height: 4px; border-radius: 2px; background: #fff; }
 .pin.fav { box-shadow: 0 0 0 3px #f5b400, 0 2px 6px rgba(0,0,0,.35); }
 .pin.sel { transform: scale(1.25); }
+.pin-label {
+  position: absolute; left: 50%; top: 30px; transform: translateX(-50%);
+  white-space: nowrap; font: 700 11px/1.2 var(--font); color: var(--fg);
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  padding: 2px 5px; border-radius: 4px; pointer-events: none;
+}
 .me {
   width: 16px; height: 16px; border-radius: 50%;
   background: #2f7bf6; border: 3px solid #fff; box-shadow: 0 0 0 6px rgba(47,123,246,.25);
@@ -121,7 +145,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   position: fixed; z-index: 600; left: 0; right: 0; bottom: 0;
   background: var(--surface); color: var(--fg);
   border-radius: 18px 18px 0 0; box-shadow: var(--shadow);
-  max-height: 62%; display: flex; flex-direction: column;
+  max-height: 66%; display: flex; flex-direction: column;
   padding-bottom: env(safe-area-inset-bottom, 0px);
   transform: translateY(0); transition: transform .25s ease;
 }
@@ -134,9 +158,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .letter {
   flex: none; width: 40px; height: 40px; border-radius: 50%;
-  background: var(--red); color: var(--red-ink);
+  background: var(--red); color: var(--pin-ink);
   display: grid; place-items: center; font-weight: 800; font-size: 16px;
 }
+.letter.tube { background: var(--navy); border-radius: 10px; }
+.letter.tube::after { content: ""; width: 16px; height: 6px; border-radius: 3px; background: #fff; }
 .titles { flex: 1; min-width: 0; }
 .titles h2 { margin: 0; font-size: 18px; line-height: 1.2; font-weight: 800; text-wrap: balance; }
 .titles .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
@@ -145,6 +171,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   font: 600 11px/1 var(--mono); padding: 4px 6px; border-radius: 4px;
   background: var(--chip); color: var(--fg);
 }
+.routes span.ln { font-family: var(--font); font-weight: 800; padding: 4px 7px 3px; }
 .head-actions { display: flex; gap: 6px; flex: none; }
 .icon-btn {
   width: 36px; height: 36px; border-radius: 50%; border: 0;
@@ -161,22 +188,40 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .row:last-child { border-bottom: 0; }
 .route {
-  background: var(--red); color: var(--red-ink);
+  background: var(--red); color: var(--pin-ink);
   font: 800 15px/1 var(--font); text-align: center;
   padding: 7px 4px 5px; border-radius: 6px;
 }
 .dest { min-width: 0; }
 .dest b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dest small { color: var(--muted); font-size: 12px; }
+.dest small { display: block; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .due { font: 600 17px/1 var(--mono); font-variant-numeric: tabular-nums; text-align: right; min-width: 56px; }
-.due.now { color: var(--red); }
+.due.now { color: var(--accent); }
+
+/* Tube: one block per line + platform */
+.group { border-bottom: 1px solid var(--line); }
+.group:last-child { border-bottom: 0; }
+.group-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px max(16px, env(safe-area-inset-right, 0px)) 4px max(16px, env(safe-area-inset-left, 0px));
+}
+.line-tag {
+  flex: none; font-weight: 800; font-size: 13px; padding: 4px 8px 2px; border-radius: 4px;
+}
+.platform { color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.train {
+  display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center;
+  padding: 7px max(16px, env(safe-area-inset-right, 0px)) 7px max(16px, env(safe-area-inset-left, 0px));
+}
+.train:last-child { padding-bottom: 12px; }
+
 .note { padding: 18px 16px; color: var(--muted); text-align: center; }
 .foot {
   display: flex; justify-content: space-between; align-items: center;
   padding: 8px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px));
   color: var(--muted); font-size: 12px; border-top: 1px solid var(--line);
 }
-.foot button { background: none; border: 0; color: var(--red); font-weight: 600; padding: 4px 0; }
+.foot button { background: none; border: 0; color: var(--accent); font-weight: 600; padding: 4px 0; }
 
 /* Favourites strip */
 .favs {
@@ -193,24 +238,35 @@ button { font: inherit; color: inherit; cursor: pointer; }
   border-radius: 999px; padding: 6px 14px 6px 6px; max-width: 240px;
 }
 .fav-chip .l {
-  width: 26px; height: 26px; border-radius: 50%; background: var(--red); color: var(--red-ink);
+  width: 26px; height: 26px; border-radius: 50%; background: var(--red); color: var(--pin-ink);
   display: grid; place-items: center; font-weight: 800; font-size: 11px; flex: none;
 }
+.fav-chip .l.tube { background: var(--navy); border-radius: 7px; }
+.fav-chip .l.tube::after { content: ""; width: 10px; height: 4px; border-radius: 2px; background: #fff; }
 .fav-chip span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; font-size: 13px; }
 
+@media (max-width: 360px) {
+  .brand { padding-right: 6px; }
+  .brand .txt { display: none; }
+  .switch button { padding: 7px 12px 5px; }
+}
 @media (prefers-reduced-motion: reduce) { .sheet { transition: none; } }
 </style>
 </head>
-<body>
-<div id="map" aria-label="Map of bus stops"></div>
+<body data-mode="bus">
+<div id="map" aria-label="Map of stops and stations"></div>
 
 <div class="topbar">
-  <div class="brand"><span class="dot" aria-hidden="true"></span>LLT</div>
+  <div class="brand"><span class="dot" aria-hidden="true"></span><span class="txt">LLT</span></div>
+  <div class="switch" role="group" aria-label="Transport type">
+    <button id="mode-bus" data-mode="bus" aria-pressed="true">Bus</button>
+    <button id="mode-tube" data-mode="tube" aria-pressed="false">Tube</button>
+  </div>
   <button class="round" id="locate" aria-label="Show my location">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
   </button>
 </div>
-<div class="hint" id="hint" hidden>Zoom in to see bus stops</div>
+<div class="hint" id="hint" hidden></div>
 
 <div class="favs" id="favs" hidden></div>
 
@@ -241,15 +297,30 @@ button { font: inherit; color: inherit; cursor: pointer; }
 // Optional: a free key from https://api-portal.tfl.gov.uk raises TfL's rate limit.
 const APP_KEY = "";
 const API = "https://api.tfl.gov.uk";
-const MIN_ZOOM = 16;
 const REFRESH_MS = 30000;
+
+const MODES = {
+  bus:  { stopTypes: "NaptanPublicBusCoachTram", modes: "bus",  minZoom: 16, maxRadius: 1000, hint: "Zoom in to see bus stops" },
+  tube: { stopTypes: "NaptanMetroStation",       modes: "tube", minZoom: 13, maxRadius: 3000, hint: "Zoom in to see Tube stations" }
+};
+
+// Line colours (background, text)
+const LINE_COLOURS = {
+  "bakerloo": ["#B36305", "#fff"], "central": ["#E32017", "#fff"], "circle": ["#FFD300", "#1b1d21"],
+  "district": ["#00782A", "#fff"], "hammersmith-city": ["#F3A9BB", "#1b1d21"], "jubilee": ["#A0A5A9", "#1b1d21"],
+  "metropolitan": ["#9B0056", "#fff"], "northern": ["#000000", "#fff"], "piccadilly": ["#003688", "#fff"],
+  "victoria": ["#0098D4", "#fff"], "waterloo-city": ["#95CDBA", "#1b1d21"]
+};
+const lineStyle = (id) => {
+  const [bg, fg] = LINE_COLOURS[id] || ["var(--chip)", "var(--fg)"];
+  return `background:${bg};color:${fg}`;
+};
 
 const $ = (id) => document.getElementById(id);
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
 };
-
 function url(path, params = {}) {
   const u = new URL(API + path);
   for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
@@ -262,75 +333,114 @@ async function getJSON(u, signal) {
   return r.json();
 }
 const cleanLetter = (s) => (s || "").replace(/^->/, "").slice(0, 3);
+const cleanStation = (s) => (s || "").replace(/ (Underground|DLR|Rail) Station$/i, "").replace(/ Station$/i, "");
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// ---------- State ----------
+let mode = store.get("mode", "bus");
+if (!MODES[mode]) mode = "bus";
+let favs = store.get("favs", []).map((f) => ({ mode: "bus", ...f })); // older favourites were all bus stops
+let selectedId = null;
+const markers = new Map(); // naptanId -> marker (current mode only)
+const stops = new Map();   // naptanId -> stop (current mode only)
 
 // ---------- Map ----------
 const last = store.get("view", { lat: 51.5074, lng: -0.1278, z: 16 });
-const map = L.map("map", { zoomControl: false, attributionControl: true })
-  .setView([last.lat, last.lng], last.z);
+const map = L.map("map", { zoomControl: false }).setView([last.lat, last.lng], last.z);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19,
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · Powered by TfL Open Data'
 }).addTo(map);
 
-const markers = new Map(); // naptanId -> marker
-const stops = new Map();   // naptanId -> stop
-let favs = store.get("favs", []); // [{id, name, letter, lat, lon}]
-let selectedId = null;
-
 function pinIcon(stop) {
   const cls = ["pin"];
+  if (mode === "tube") cls.push("tube");
   if (favs.some((f) => f.id === stop.naptanId)) cls.push("fav");
   if (stop.naptanId === selectedId) cls.push("sel");
+  const text = mode === "bus" ? esc(cleanLetter(stop.stopLetter)) : "";
+  const label = mode === "tube" && map.getZoom() >= 15 ? `<div class="pin-label">${esc(cleanStation(stop.commonName))}</div>` : "";
+  const size = mode === "tube" ? 26 : 28;
   return L.divIcon({
     className: "",
-    html: `<div class="${cls.join(" ")}">${esc(cleanLetter(stop.stopLetter))}</div>`,
-    iconSize: [28, 28], iconAnchor: [14, 14]
+    html: `<div style="position:relative"><div class="${cls.join(" ")}">${text}</div>${label}</div>`,
+    iconSize: [size, size], iconAnchor: [size / 2, size / 2]
   });
 }
 function refreshPin(id) {
   const m = markers.get(id), s = stops.get(id);
   if (m && s) m.setIcon(pinIcon(s));
 }
+function clearPins() {
+  for (const m of markers.values()) m.remove();
+  markers.clear(); stops.clear();
+}
 
-let loadCtl = null, loadTimer = null;
+let loadCtl = null, loadTimer = null, lastZoom = map.getZoom();
 function scheduleLoad() {
   clearTimeout(loadTimer);
   loadTimer = setTimeout(loadStops, 250);
 }
-async function loadStops() {
-  const c = map.getCenter();
-  store.set("view", { lat: c.lat, lng: c.lng, z: map.getZoom() });
-  if (map.getZoom() < MIN_ZOOM) { $("hint").hidden = false; return; }
-  $("hint").hidden = true;
+function setHint(text) { $("hint").textContent = text; $("hint").hidden = !text; }
 
-  const b = map.getBounds();
-  const radius = Math.min(1000, Math.max(200, Math.round(c.distanceTo(b.getNorthEast()))));
+async function loadStops() {
+  const c = map.getCenter(), z = map.getZoom(), cfg = MODES[mode];
+  store.set("view", { lat: c.lat, lng: c.lng, z });
+  // Tube labels appear/disappear with zoom, so redraw icons when crossing that line
+  if (mode === "tube" && (lastZoom >= 15) !== (z >= 15)) for (const id of markers.keys()) refreshPin(id);
+  lastZoom = z;
+
+  if (z < cfg.minZoom) { setHint(cfg.hint); return; }
+  setHint("");
+
+  const radius = Math.min(cfg.maxRadius, Math.max(200, Math.round(c.distanceTo(map.getBounds().getNorthEast()))));
   loadCtl?.abort();
   loadCtl = new AbortController();
+  const forMode = mode;
   try {
     const data = await getJSON(url("/StopPoint", {
       lat: c.lat.toFixed(5), lon: c.lng.toFixed(5),
-      stopTypes: "NaptanPublicBusCoachTram", modes: "bus", radius
+      stopTypes: cfg.stopTypes, modes: cfg.modes, radius
     }), loadCtl.signal);
+    if (forMode !== mode) return;
     for (const s of data.stopPoints || []) {
-      if (!s.lines || s.lines.length === 0) continue; // unused stops
+      if (!s.lines || s.lines.length === 0 || !s.lat) continue;
+      if (forMode === "tube") s.lines = s.lines.filter((l) => LINE_COLOURS[l.id]);
+      if (!s.lines.length) continue;
       stops.set(s.naptanId, s);
       if (markers.has(s.naptanId)) continue;
-      const m = L.marker([s.lat, s.lon], { icon: pinIcon(s), title: `${s.commonName} (${s.indicator || ""})` })
+      const m = L.marker([s.lat, s.lon], { icon: pinIcon(s), title: s.commonName })
         .on("click", () => openStop(s))
         .addTo(map);
       markers.set(s.naptanId, m);
     }
   } catch (e) {
-    if (e.name !== "AbortError") showHint("Couldn't load stops. Check your connection.");
+    if (e.name !== "AbortError") flashHint("Couldn't load " + (mode === "bus" ? "stops" : "stations") + ". Check your connection.");
   }
 }
-function showHint(text) {
-  $("hint").textContent = text; $("hint").hidden = false;
-  setTimeout(() => { $("hint").textContent = "Zoom in to see bus stops"; if (map.getZoom() >= MIN_ZOOM) $("hint").hidden = true; }, 3000);
+function flashHint(text) {
+  setHint(text);
+  setTimeout(() => setHint(map.getZoom() < MODES[mode].minZoom ? MODES[mode].hint : ""), 3000);
 }
 map.on("moveend", scheduleLoad);
+
+// ---------- Bus | Tube switch ----------
+function setMode(next, { load = true } = {}) {
+  mode = next;
+  store.set("mode", mode);
+  document.body.dataset.mode = mode;
+  for (const b of document.querySelectorAll(".switch button")) b.setAttribute("aria-pressed", String(b.dataset.mode === mode));
+  closeStop();
+  clearPins();
+  if (load) {
+    // Tube stations are further apart, so zoom out a little when switching to them
+    if (mode === "tube" && map.getZoom() > 15) map.setZoom(15);
+    else if (mode === "bus" && map.getZoom() < MODES.bus.minZoom) map.setZoom(MODES.bus.minZoom);
+    else loadStops();
+  }
+}
+for (const b of document.querySelectorAll(".switch button")) {
+  b.addEventListener("click", () => { if (b.dataset.mode !== mode) setMode(b.dataset.mode); });
+}
 
 // ---------- Location ----------
 let meMarker = null;
@@ -340,8 +450,8 @@ function locate(fly) {
     const ll = [p.coords.latitude, p.coords.longitude];
     if (!meMarker) meMarker = L.marker(ll, { icon: L.divIcon({ className: "", html: '<div class="me"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }), interactive: false, zIndexOffset: -100 }).addTo(map);
     else meMarker.setLatLng(ll);
-    if (fly) map.setView(ll, Math.max(map.getZoom(), 17));
-  }, () => { if (fly) showHint("Location is off. Allow it in Settings to centre the map."); },
+    if (fly) map.setView(ll, Math.max(map.getZoom(), mode === "tube" ? 15 : 17));
+  }, () => { if (fly) flashHint("Location is off. Allow it in Settings to centre the map."); },
   { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
 }
 $("locate").addEventListener("click", () => locate(true));
@@ -355,10 +465,14 @@ function openStop(s) {
   if (prev) refreshPin(prev);
   refreshPin(s.naptanId);
 
-  $("s-letter").textContent = cleanLetter(s.stopLetter) || "•";
-  $("s-name").textContent = s.commonName;
-  $("s-sub").textContent = s.indicator || "";
-  $("s-routes").innerHTML = (s.lines || []).map((l) => `<span>${esc(l.name)}</span>`).join("");
+  const letter = $("s-letter");
+  letter.className = "letter" + (mode === "tube" ? " tube" : "");
+  letter.textContent = mode === "bus" ? (cleanLetter(s.stopLetter) || "•") : "";
+  $("s-name").textContent = mode === "tube" ? cleanStation(s.commonName) : s.commonName;
+  $("s-sub").textContent = mode === "tube" ? "Underground station" : (s.indicator || "");
+  $("s-routes").innerHTML = (s.lines || []).map((l) =>
+    mode === "tube" ? `<span class="ln" style="${lineStyle(l.id)}">${esc(l.name)}</span>` : `<span>${esc(l.name)}</span>`
+  ).join("");
   updateFavBtn();
   arrivals = []; fetchedAt = 0;
   $("s-list").innerHTML = '<div class="note">Loading departures…</div>';
@@ -388,7 +502,9 @@ async function loadArrivals() {
   try {
     const data = await getJSON(url(`/StopPoint/${encodeURIComponent(id)}/Arrivals`), arrCtl.signal);
     if (!currentStop || currentStop.naptanId !== id) return;
-    arrivals = data.sort((a, b) => a.timeToStation - b.timeToStation);
+    arrivals = data
+      .filter((a) => mode === "bus" || a.modeName === "tube")
+      .sort((a, b) => a.timeToStation - b.timeToStation);
     fetchedAt = Date.now();
     renderArrivals();
   } catch (e) {
@@ -407,9 +523,10 @@ function renderArrivals() {
   const live = arrivals
     .map((a) => ({ ...a, left: a.timeToStation - elapsed }))
     .filter((a) => a.left > -30);
+
   if (!live.length) {
-    $("s-list").innerHTML = '<div class="note">No buses due in the next 30 minutes.</div>';
-  } else {
+    $("s-list").innerHTML = `<div class="note">No ${mode === "bus" ? "buses" : "trains"} due in the next 30 minutes.</div>`;
+  } else if (mode === "bus") {
     $("s-list").innerHTML = live.map((a) => {
       const now = a.left < 60;
       return `<div class="row">
@@ -418,38 +535,73 @@ function renderArrivals() {
         <div class="due${now ? " now" : ""}">${dueText(Math.max(0, a.left))}</div>
       </div>`;
     }).join("");
+  } else {
+    renderTube(live);
   }
   const t = new Date(fetchedAt);
   $("s-updated").textContent = "Updated " + t.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+// Tube: group by line, then platform; show the next 3 trains on each
+function renderTube(live) {
+  const groups = new Map();
+  for (const a of live) {
+    const key = a.lineId + "|" + (a.platformName || "");
+    if (!groups.has(key)) groups.set(key, { lineId: a.lineId, lineName: a.lineName, platform: a.platformName || "", trains: [] });
+    groups.get(key).trains.push(a);
+  }
+  const order = (currentStop?.lines || []).map((l) => l.id);
+  const sorted = [...groups.values()].sort((a, b) =>
+    (order.indexOf(a.lineId) - order.indexOf(b.lineId)) || a.platform.localeCompare(b.platform, "en", { numeric: true }));
+
+  $("s-list").innerHTML = sorted.map((g) => `
+    <div class="group">
+      <div class="group-head">
+        <span class="line-tag" style="${lineStyle(g.lineId)}">${esc(g.lineName)}</span>
+        <span class="platform">${esc(g.platform.replace(" - ", " · "))}</span>
+      </div>
+      ${g.trains.slice(0, 3).map((a) => `
+        <div class="train">
+          <div class="dest"><b>${esc(cleanStation(a.destinationName) || a.towards || "Check front of train")}</b>${a.currentLocation ? `<small>${esc(a.currentLocation)}</small>` : ""}</div>
+          <div class="due${a.left < 60 ? " now" : ""}">${dueText(Math.max(0, a.left))}</div>
+        </div>`).join("")}
+    </div>`).join("");
 }
 
 // ---------- Favourites ----------
 function updateFavBtn() {
   const on = !!currentStop && favs.some((f) => f.id === currentStop.naptanId);
   $("s-fav").setAttribute("aria-pressed", String(on));
-  $("s-fav").setAttribute("aria-label", on ? "Remove from saved stops" : "Save stop");
+  $("s-fav").setAttribute("aria-label", on ? "Remove from saved" : "Save");
 }
 $("s-fav").addEventListener("click", () => {
   if (!currentStop) return;
   const s = currentStop;
   if (favs.some((f) => f.id === s.naptanId)) favs = favs.filter((f) => f.id !== s.naptanId);
-  else favs.push({ id: s.naptanId, name: s.commonName, letter: cleanLetter(s.stopLetter), lat: s.lat, lon: s.lon, indicator: s.indicator, lines: s.lines });
+  else favs.push({
+    id: s.naptanId, mode,
+    name: mode === "tube" ? cleanStation(s.commonName) : s.commonName,
+    commonName: s.commonName,
+    letter: cleanLetter(s.stopLetter), lat: s.lat, lon: s.lon, indicator: s.indicator,
+    lines: (s.lines || []).map((l) => ({ id: l.id, name: l.name }))
+  });
   store.set("favs", favs);
   updateFavBtn(); refreshPin(s.naptanId);
 });
 function renderFavs() {
   const el = $("favs");
-  if (!favs.length || currentStop) { el.hidden = true; return; }
-  el.innerHTML = favs.map((f, i) =>
-    `<button class="fav-chip" data-i="${i}"><span class="l">${esc(f.letter || "•")}</span><span>${esc(f.name)}</span></button>`
+  const list = favs.filter((f) => f.mode === mode);
+  if (!list.length || currentStop) { el.hidden = true; return; }
+  el.innerHTML = list.map((f) =>
+    `<button class="fav-chip" data-id="${esc(f.id)}"><span class="l${f.mode === "tube" ? " tube" : ""}">${f.mode === "bus" ? esc(f.letter || "•") : ""}</span><span>${esc(f.name)}</span></button>`
   ).join("");
   el.hidden = false;
 }
 $("favs").addEventListener("click", (e) => {
   const b = e.target.closest(".fav-chip"); if (!b) return;
-  const f = favs[+b.dataset.i];
-  const s = stops.get(f.id) || { naptanId: f.id, commonName: f.name, stopLetter: f.letter, indicator: f.indicator, lat: f.lat, lon: f.lon, lines: f.lines || [] };
-  map.setView([f.lat, f.lon], Math.max(map.getZoom(), 17));
+  const f = favs.find((x) => x.id === b.dataset.id); if (!f) return;
+  const s = stops.get(f.id) || { naptanId: f.id, commonName: f.commonName || f.name, stopLetter: f.letter, indicator: f.indicator, lat: f.lat, lon: f.lon, lines: f.lines || [] };
+  map.setView([f.lat, f.lon], Math.max(map.getZoom(), mode === "tube" ? 15 : 17));
   openStop(s);
 });
 
@@ -459,7 +611,7 @@ document.addEventListener("visibilitychange", () => {
   else if (currentStop) { loadArrivals(); clearInterval(refreshTimer); refreshTimer = setInterval(loadArrivals, REFRESH_MS); }
 });
 
-renderFavs();
+setMode(mode, { load: false });
 loadStops();
 locate(!store.get("view", null));
 </script>

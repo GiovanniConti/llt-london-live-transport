@@ -6,21 +6,21 @@ A phone-first web app for live London transport times. Open it, find your stop o
 
 ## What it does
 
-- Map of bus stops around you, each pin showing its stop letter
-- Tap a stop to see its routes and live departures, counting down and refreshing every 30 seconds
+- **Bus | Tube** switch at the top
+- Bus mode: map of bus stops, each pin showing its stop letter, with live departures per stop
+- Tube mode: map of Underground stations, with live trains grouped by line and platform
+- Departures count down live and refresh every 30 seconds
 - Save favourite stops for one-tap access
 - Works in light and dark mode
 - Add to your iPhone Home Screen (Safari → Share → Add to Home Screen) to use it full screen like an app
-
-Tube times are planned for later.
 
 ## How it works
 
 It's a single static page (`index.html`) hosted on GitHub Pages, with no build step and no server.
 
 - **Live data:** [TfL Unified API](https://api.tfl.gov.uk)
-  - `GET /StopPoint?lat&lon&stopTypes=NaptanPublicBusCoachTram&modes=bus&radius` for stops near the map centre
-  - `GET /StopPoint/{naptanId}/Arrivals` for live predictions at a stop
+  - `GET /StopPoint?lat&lon&stopTypes=NaptanPublicBusCoachTram&modes=bus&radius` for bus stops, and `stopTypes=NaptanMetroStation&modes=tube` for Tube stations
+  - `GET /StopPoint/{naptanId}/Arrivals` for live predictions at a stop or station
 - **Map:** [Leaflet](https://leafletjs.com) with [OpenStreetMap](https://www.openstreetmap.org/copyright) tiles
 - **Favourites and last map position:** saved in the browser's local storage on your device
 
