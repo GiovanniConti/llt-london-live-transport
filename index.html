@@ -251,7 +251,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .favs::-webkit-scrollbar { display: none; }
 .fav-chip {
   flex: none; display: flex; align-items: center; gap: 8px;
-  border: 0; background: var(--surface); box-shadow: var(--shadow);
+  border: 0; background: color-mix(in srgb, var(--surface) 50%, transparent);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  box-shadow: 0 4px 14px rgba(20, 22, 28, .12);
   border-radius: 999px; padding: 6px 14px 6px 6px; max-width: 240px;
 }
 .fav-chip .l {
