@@ -145,8 +145,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .hit { position: relative; width: 30px; height: 30px; display: grid; place-items: center; }
 .pin.tube {
-  width: 16px; height: 16px; background: #fff;
-  border: 3.5px solid var(--station-ink); box-shadow: 0 1px 3px rgba(0,0,0,.25);
+  width: 16px; height: 16px; background: transparent;
+  border: 3.5px solid var(--station-ink); box-shadow: 0 0 0 1.5px rgba(255,255,255,.7);
 }
 .pin.fav { box-shadow: 0 0 0 3px #f5b400, 0 2px 6px rgba(0,0,0,.35); }
 .pin.sel { transform: scale(1.25); }
@@ -182,7 +182,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   background: var(--red); color: var(--pin-ink);
   display: grid; place-items: center; font-weight: 800; font-size: 16px;
 }
-.letter.tube { background: #fff; border: 7px solid var(--station-ink); }
+.letter.tube { background: transparent; border: 7px solid var(--paper-ink); }
 .titles { flex: 1; min-width: 0; }
 .titles h2 { margin: 0; font-size: 18px; line-height: 1.2; font-weight: 800; text-wrap: balance; }
 .titles .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
@@ -256,7 +256,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   width: 26px; height: 26px; border-radius: 50%; background: var(--red); color: var(--pin-ink);
   display: grid; place-items: center; font-weight: 800; font-size: 11px; flex: none;
 }
-.fav-chip .l.tube { background: #fff; border: 5px solid var(--station-ink); width: 22px; height: 22px; margin: 2px; }
+.fav-chip .l.tube { background: transparent; border: 5px solid var(--fg); width: 22px; height: 22px; margin: 2px; }
 .fav-chip span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; font-size: 13px; }
 
 @media (max-width: 360px) {
@@ -327,7 +327,7 @@ const REFRESH_MS = 30000;
 
 const MODES = {
   bus:  { stopTypes: "NaptanPublicBusCoachTram", modes: "bus",  minZoom: 16, maxRadius: 1000, hint: "Zoom in to see bus stops" },
-  tube: { stopTypes: "NaptanMetroStation",       modes: "tube", minZoom: 13, maxRadius: 3000, hint: "Zoom in to see Tube stations" }
+  tube: { stopTypes: "NaptanMetroStation",       modes: "tube", minZoom: 12, maxRadius: 3000, hint: "Zoom in to see Tube stations" }
 };
 
 // Line colours (background, text)
@@ -382,7 +382,7 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 // Tube lines: route shapes from TfL, cached on the device for 30 days
 map.createPane("lines").style.zIndex = 350;
 const lineLayer = L.layerGroup();
-const LINES_KEY = "tubeLines.v1";
+const LINES_KEY = "tubeNetwork.v2";
 let linesPromise = null;
 function ensureTubeLines() {
   if (!linesPromise) linesPromise = drawTubeLines().catch(() => { linesPromise = null; });
@@ -395,12 +395,20 @@ async function drawTubeLines() {
     const results = await Promise.all(ids.map((id) =>
       getJSON(url(`/Line/${id}/Route/Sequence/outbound`))
         .then((d) => [id, (d.lineStrings || []).flatMap((s) => JSON.parse(s))
-          .map((seg) => seg.map(([lon, lat]) => [+lat.toFixed(5), +lon.toFixed(5)]))])
+          .map((seg) => seg.map(([lon, lat]) => [+lat.toFixed(5), +lon.toFixed(5)])), d.stations])
         .catch(() => [id, null])));
-    const lines = {};
-    for (const [id, segs] of results) if (segs && segs.length) lines[id] = segs;
+    const lines = {}, stations = {};
+    for (const [id, segs, sts] of results) {
+      if (segs && segs.length) lines[id] = segs;
+      for (const s of sts || []) {
+        const sid = s.id || s.stationId;
+        if (!sid || !s.lat) continue;
+        const st = stations[sid] || (stations[sid] = { naptanId: sid, commonName: s.name, lat: +s.lat.toFixed(5), lon: +s.lon.toFixed(5), lines: [] });
+        for (const l of s.lines || []) if (LINE_COLOURS[l.id] && !st.lines.some((x) => x.id === l.id)) st.lines.push({ id: l.id, name: l.name });
+      }
+    }
     if (!Object.keys(lines).length) throw new Error("no lines");
-    cached = { t: Date.now(), lines };
+    cached = { t: Date.now(), lines, stations };
     store.set(LINES_KEY, cached);
   }
   lineLayer.clearLayers();
@@ -410,7 +418,9 @@ async function drawTubeLines() {
       lineCap: "round", lineJoin: "round", interactive: false
     }).addTo(lineLayer);
   }
+  tubeStations = Object.values(cached.stations || {});
 }
+let tubeStations = [];
 
 function pinIcon(stop) {
   const cls = ["pin"];
@@ -441,6 +451,14 @@ function scheduleLoad() {
 }
 function setHint(text) { $("hint").textContent = text; $("hint").hidden = !text; }
 
+function addMarker(s) {
+  stops.set(s.naptanId, s);
+  if (markers.has(s.naptanId)) return;
+  const m = L.marker([s.lat, s.lon], { icon: pinIcon(s), title: s.commonName })
+    .on("click", () => openStop(s))
+    .addTo(map);
+  markers.set(s.naptanId, m);
+}
 async function loadStops() {
   const c = map.getCenter(), z = map.getZoom(), cfg = MODES[mode];
   store.set("view", { lat: c.lat, lng: c.lng, z });
@@ -450,6 +468,14 @@ async function loadStops() {
 
   if (z < cfg.minZoom) { setHint(cfg.hint); return; }
   setHint("");
+
+  if (mode === "tube") {
+    await ensureTubeLines();
+    if (mode !== "tube" || markers.size) return;
+    if (!tubeStations.length) { flashHint("Couldn't load stations. Check your connection."); return; }
+    for (const s of tubeStations) addMarker(s);
+    return;
+  }
 
   const radius = Math.min(cfg.maxRadius, Math.max(200, Math.round(c.distanceTo(map.getBounds().getNorthEast()))));
   loadCtl?.abort();
@@ -465,12 +491,7 @@ async function loadStops() {
       if (!s.lines || s.lines.length === 0 || !s.lat) continue;
       if (forMode === "tube") s.lines = s.lines.filter((l) => LINE_COLOURS[l.id]);
       if (!s.lines.length) continue;
-      stops.set(s.naptanId, s);
-      if (markers.has(s.naptanId)) continue;
-      const m = L.marker([s.lat, s.lon], { icon: pinIcon(s), title: s.commonName })
-        .on("click", () => openStop(s))
-        .addTo(map);
-      markers.set(s.naptanId, m);
+      addMarker(s);
     }
   } catch (e) {
     if (e.name !== "AbortError") flashHint("Couldn't load " + (mode === "bus" ? "stops" : "stations") + ". Check your connection.");
