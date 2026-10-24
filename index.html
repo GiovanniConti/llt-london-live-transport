@@ -823,7 +823,10 @@ function summary(f) {
   const parts = list.map((a) => {
     const t = shortDue(Math.max(0, a.left));
     if (f.mode === "bus") return `${a.lineName} ${t}`;
-    if (f.filter) return `${cleanStation(a.destinationName) || a.towards || "Train"} ${t}`;
+    if (f.filter) {
+      const dest = cleanStation(a.destinationName) || a.towards || "";
+      return /check front/i.test(dest) || !dest ? t : `${dest} ${t}`;
+    }
     return `${a.lineName} ${direction(a.platformName).charAt(0)} ${t}`;
   });
   return { text: parts.join(" · "), dim: false };
