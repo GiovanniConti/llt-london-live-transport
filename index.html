@@ -158,10 +158,18 @@ button { font: inherit; color: inherit; cursor: pointer; }
   background: color-mix(in srgb, var(--surface) 85%, transparent);
   padding: 2px 5px; border-radius: 4px; pointer-events: none;
 }
-.me {
-  width: 16px; height: 16px; border-radius: 50%;
-  background: #2f7bf6; border: 3px solid #fff; box-shadow: 0 0 0 6px rgba(47,123,246,.25);
+.me { position: relative; width: 22px; height: 22px; }
+.me::before {
+  content: ""; position: absolute; inset: -9px; border-radius: 50%;
+  background: rgba(30, 115, 245, .28); animation: me-pulse 2s ease-out infinite;
 }
+.me::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%;
+  background: #1e73f5; border: 3.5px solid #fff; box-shadow: 0 1px 5px rgba(0,0,0,.4);
+}
+@keyframes me-pulse { 0% { transform: scale(.5); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
+.round.following { color: #1e73f5; }
+@media (prefers-reduced-motion: reduce) { .me::before { animation: none; } }
 
 /* Bottom sheet */
 .sheet {
@@ -556,16 +564,45 @@ for (const b of document.querySelectorAll(".switch button")) {
 }
 
 // ---------- Location ----------
-let meMarker = null;
+// ---------- My position ----------
+// Blue dot with an accuracy circle, kept up to date while the app is open.
+map.createPane("me").style.zIndex = 650;      // above stop pins
+map.createPane("meAcc").style.zIndex = 340;   // under Tube lines and pins
+let meMarker = null, meAcc = null, watchId = null, haveFix = false, flyNext = false, lastFix = null;
+const meIcon = L.divIcon({ className: "", html: '<div class="me" aria-label="Your position"></div>', iconSize: [22, 22], iconAnchor: [11, 11] });
+
+function showPosition(p) {
+  const ll = [p.coords.latitude, p.coords.longitude];
+  lastFix = ll;
+  if (!meMarker) {
+    meMarker = L.marker(ll, { icon: meIcon, pane: "me", interactive: false, keyboard: false }).addTo(map);
+    meAcc = L.circle(ll, { radius: p.coords.accuracy, pane: "meAcc", interactive: false,
+      color: "#1e73f5", weight: 1, opacity: .35, fillColor: "#1e73f5", fillOpacity: .1 }).addTo(map);
+  } else {
+    meMarker.setLatLng(ll);
+    meAcc.setLatLng(ll).setRadius(p.coords.accuracy);
+  }
+  $("locate").classList.add("following");
+  if (flyNext) { flyNext = false; map.setView(ll, Math.max(map.getZoom(), mode === "tube" ? 15 : 17)); }
+  haveFix = true;
+}
+function startWatch() {
+  if (!navigator.geolocation || watchId !== null) return;
+  watchId = navigator.geolocation.watchPosition(showPosition, (err) => {
+    if (err.code === 1) { stopWatch(); $("locate").classList.remove("following"); }
+  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 });
+}
+function stopWatch() {
+  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+  watchId = null;
+}
 function locate(fly, fromButton = false) {
   if (!navigator.geolocation) return;
-  navigator.geolocation.getCurrentPosition((p) => {
-    const ll = [p.coords.latitude, p.coords.longitude];
-    if (!meMarker) meMarker = L.marker(ll, { icon: L.divIcon({ className: "", html: '<div class="me"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }), interactive: false, zIndexOffset: -100 }).addTo(map);
-    else meMarker.setLatLng(ll);
-    if (fly) map.setView(ll, Math.max(map.getZoom(), mode === "tube" ? 15 : 17));
-  }, () => { if (fromButton) flashHint("Location is off. Allow it in Settings to centre the map."); },
-  { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
+  if (fly && lastFix) { map.setView(lastFix, Math.max(map.getZoom(), mode === "tube" ? 15 : 17)); fly = false; }
+  flyNext = fly;
+  navigator.geolocation.getCurrentPosition((p) => { showPosition(p); startWatch(); },
+    () => { flyNext = false; if (fromButton) flashHint("Location is off. Allow it in Settings to see where you are."); },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
 }
 $("locate").addEventListener("click", () => locate(true, true));
 
@@ -876,7 +913,8 @@ $("sv-list").addEventListener("click", (e) => {
 let hiddenAt = 0;
 const RECENTRE_AFTER_MS = 5 * 60 * 1000;
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden) { hiddenAt = Date.now(); clearInterval(refreshTimer); return; }
+  if (document.hidden) { hiddenAt = Date.now(); clearInterval(refreshTimer); stopWatch(); return; }
+  if (haveFix) startWatch();
   if (currentStop) { loadArrivals(); clearInterval(refreshTimer); refreshTimer = setInterval(loadArrivals, REFRESH_MS); }
   else if (hiddenAt && Date.now() - hiddenAt > RECENTRE_AFTER_MS) locate(true);
 });
