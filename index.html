@@ -422,7 +422,7 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 // Tube lines: route shapes from TfL, cached on the device for 30 days
 map.createPane("lines").style.zIndex = 350;
 const lineLayer = L.layerGroup();
-const LINES_KEY = "tubeNetwork.v2";
+const LINES_KEY = "tubeNetwork.v3";
 let linesPromise = null;
 function ensureTubeLines() {
   if (!linesPromise) linesPromise = drawTubeLines().catch(() => { linesPromise = null; });
@@ -448,7 +448,16 @@ async function drawTubeLines() {
       }
     }
     if (!Object.keys(lines).length) throw new Error("no lines");
-    cached = { t: Date.now(), lines, stations };
+    // Interchanges (e.g. Blackfriars, Victoria) come back as "HUB…" ids, which have no
+    // Tube arrivals. Swap each for its Underground station id ("940G…").
+    const hubMap = await resolveHubs(Object.keys(stations).filter((id) => id.startsWith("HUB")));
+    const merged = {};
+    for (const st of Object.values(stations)) {
+      const id = hubMap[st.naptanId] || st.naptanId;
+      const m = merged[id] || (merged[id] = { ...st, naptanId: id, lines: [] });
+      for (const l of st.lines) if (!m.lines.some((x) => x.id === l.id)) m.lines.push(l);
+    }
+    cached = { t: Date.now(), lines, stations: merged, hubMap };
     store.set(LINES_KEY, cached);
   }
   lineLayer.clearLayers();
@@ -459,6 +468,43 @@ async function drawTubeLines() {
     }).addTo(lineLayer);
   }
   tubeStations = Object.values(cached.stations || {});
+  hubToTube = cached.hubMap || {};
+  migrateHubFavs();
+}
+let hubToTube = {};
+// Look up the Underground station inside each interchange, 20 ids per request
+async function resolveHubs(ids) {
+  const out = {};
+  for (let i = 0; i < ids.length; i += 20) {
+    const batch = ids.slice(i, i + 20);
+    try {
+      let data = await getJSON(url(`/StopPoint/${batch.map(encodeURIComponent).join(",")}`));
+      if (!Array.isArray(data)) data = [data];
+      for (const hub of data) {
+        const tube = (hub.children || []).find((c) => c.stopType === "NaptanMetroStation" && (c.modes || []).includes("tube"))
+          || (hub.children || []).find((c) => (c.naptanId || "").startsWith("940GZZLU"));
+        if (tube) out[hub.naptanId || hub.id] = tube.naptanId;
+      }
+    } catch {}
+  }
+  return out;
+}
+// Older saved items may still point at a HUB id
+function migrateHubFavs() {
+  let changed = false;
+  for (const f of favs) {
+    const id = hubToTube[f.id];
+    if (f.mode === "tube" && id) { f.id = id; f.key = favKey(id, f.filter); changed = true; }
+  }
+  if (changed) store.set("favs", favs);
+}
+// Safety net for any id that slipped through: resolve on demand
+async function tubeId(id) {
+  if (!id.startsWith("HUB")) return id;
+  if (hubToTube[id]) return hubToTube[id];
+  const m = await resolveHubs([id]);
+  if (m[id]) hubToTube[id] = m[id];
+  return hubToTube[id] || id;
 }
 let tubeStations = [];
 
@@ -721,7 +767,8 @@ async function loadArrivals() {
   arrCtl?.abort(); arrCtl = new AbortController();
   const id = currentStop.naptanId;
   try {
-    const data = await getJSON(url(`/StopPoint/${encodeURIComponent(id)}/Arrivals`), arrCtl.signal);
+    const reqId = mode === "tube" ? await tubeId(id) : id;
+    const data = await getJSON(url(`/StopPoint/${encodeURIComponent(reqId)}/Arrivals`), arrCtl.signal);
     if (!currentStop || currentStop.naptanId !== id) return;
     arrivals = data
       .filter((a) => mode === "bus" || a.modeName === "tube")
@@ -842,7 +889,7 @@ async function loadSaved() {
   const ids = [...new Set(favs.map((f) => f.id))];
   await Promise.all(ids.map(async (id) => {
     try {
-      const data = await getJSON(url(`/StopPoint/${encodeURIComponent(id)}/Arrivals`));
+      const data = await getJSON(url(`/StopPoint/${encodeURIComponent(await tubeId(id))}/Arrivals`));
       savedData.set(id, { at: Date.now(), list: data.sort((a, b) => a.timeToStation - b.timeToStation) });
     } catch { if (!savedData.has(id)) savedData.set(id, { at: 0, list: null }); }
   }));
