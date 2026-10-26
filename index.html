@@ -362,6 +362,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 <script>
 // Optional: a free key from https://api-portal.tfl.gov.uk raises TfL's rate limit.
 const APP_KEY = "";
+const VERSION = "26 Oct · 2";  // shown bottom-right on the map, to check which build the phone has
 const API = "https://api.tfl.gov.uk";
 const REFRESH_MS = 30000;
 
@@ -416,13 +417,13 @@ const map = L.map("map", { zoomControl: false }).setView([last.lat, last.lng], l
 // Base map: OpenStreetMap, tinted to a warm paper tone in CSS (no key needed)
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19,
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · Powered by TfL Open Data'
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · Powered by TfL Open Data · LLT ' + VERSION
 }).addTo(map);
 
 // Tube lines: route shapes from TfL, cached on the device for 30 days
 map.createPane("lines").style.zIndex = 350;
 const lineLayer = L.layerGroup();
-const LINES_KEY = "tubeNetwork.v3";
+const LINES_KEY = "tubeNetwork.v4";
 let linesPromise = null;
 function ensureTubeLines() {
   if (!linesPromise) linesPromise = drawTubeLines().catch(() => { linesPromise = null; });
@@ -432,11 +433,20 @@ async function drawTubeLines() {
   let cached = store.get(LINES_KEY, null);
   if (!cached || Date.now() - cached.t > 30 * 864e5) {
     const ids = Object.keys(LINE_COLOURS);
-    const results = await Promise.all(ids.map((id) =>
-      getJSON(url(`/Line/${id}/Route/Sequence/outbound`))
-        .then((d) => [id, (d.lineStrings || []).flatMap((s) => JSON.parse(s))
-          .map((seg) => seg.map(([lon, lat]) => [+lat.toFixed(5), +lon.toFixed(5)])), d.stations])
-        .catch(() => [id, null])));
+    // Shapes come from Route/Sequence; stations come from Line/StopPoints, which always
+    // uses the Underground station id (Route/Sequence gives interchanges a HUB id with no Tube times)
+    const results = await Promise.all(ids.map(async (id) => {
+      const [route, sps] = await Promise.all([
+        getJSON(url(`/Line/${id}/Route/Sequence/outbound`)).catch(() => null),
+        getJSON(url(`/Line/${id}/StopPoints`)).catch(() => null)
+      ]);
+      const segs = route ? (route.lineStrings || []).flatMap((s) => JSON.parse(s))
+        .map((seg) => seg.map(([lon, lat]) => [+lat.toFixed(5), +lon.toFixed(5)])) : null;
+      const sts = sps
+        ? sps.map((s) => ({ id: s.naptanId, name: s.commonName, lat: s.lat, lon: s.lon, lines: s.lines }))
+        : (route?.stations || []);
+      return [id, segs, sts];
+    }));
     const lines = {}, stations = {};
     for (const [id, segs, sts] of results) {
       if (segs && segs.length) lines[id] = segs;
